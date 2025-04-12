@@ -10,6 +10,7 @@ import time
 import datetime
 import traceback
 import os
+from load_api_key import load_api_key
 from config import SYMBOL, CHECK_INTERVAL, SEND_ALERT, SIMULATED_INVESTMENT, TELEGRAM_COMMANDS_ENABLED
 from models import Position, TradeHistory
 from data_provider import MarketData
@@ -413,6 +414,9 @@ class TradingBot:
 
 def main():
     """Main entry point"""
+    # Load API key from sensitive-data.txt
+    load_api_key()
+    
     bot = TradingBot()
     
     # Check command line arguments

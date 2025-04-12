@@ -3,17 +3,23 @@ AI-powered market analysis for cryptocurrencies.
 
 This module uses OpenAI's GPT-4 model to generate market analysis
 for cryptocurrencies based on current price data.
-
-Rename this file to ai_analysis.py and update with your own API key.
 """
 
 import os
 import json
 import requests
 from openai import OpenAI
+from load_api_key import load_api_key
 
 # Default API key - should be set in environment variables or config
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
+# Add your OpenAI API key to sensitive-data.txt
+# The load_api_key function will read it and set it as an environment variable
+def get_api_key():
+    """Get the API key from the environment variable."""
+    return os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
+
+# Load API key from sensitive-data.txt
+load_api_key()
 
 # Analysis prompt templates for different lengths
 SHORT_PROMPT = """
@@ -65,7 +71,7 @@ class AIAnalyzer:
         Args:
             api_key (str, optional): OpenAI API key. If not provided, will use OPENAI_API_KEY from environment.
         """
-        self.api_key = api_key or OPENAI_API_KEY
+        self.api_key = api_key or get_api_key()
         self.client = OpenAI(api_key=self.api_key)
     
     def analyze_market(self, asset_name, current_price):
@@ -180,8 +186,8 @@ def get_ai_analyzer(api_key=None):
         AIAnalyzer: AI analyzer instance
     """
     global _instance
-    if _instance is None:
-        _instance = AIAnalyzer(api_key)
+    # Always create a new instance to ensure we get the latest API key from the environment
+    _instance = AIAnalyzer(api_key)
     return _instance
 
 def analyze_crypto(asset_name, length="normal", api_key=None):

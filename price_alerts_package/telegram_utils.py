@@ -4,10 +4,11 @@ Telegram utilities for sending messages and handling notifications.
 
 import requests
 from models import TradeHistory
+from price_alerts_package.load_telegram_config import load_telegram_config
 
 # Telegram configuration - exported for use in other modules
-TELEGRAM_TOKEN = "8041049082:AAGM2SkLoWgcGh2Nm1-nGfDYeL7S3gNdlPQ"
-TELEGRAM_CHAT_ID = "365030875"
+# Load from sensitive-data.txt
+TELEGRAM_TOKEN, TELEGRAM_CHAT_ID = load_telegram_config()
 
 # Export these constants for use in other modules
 __all__ = ['send_telegram_message', 'record_alert', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID']

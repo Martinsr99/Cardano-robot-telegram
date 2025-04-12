@@ -14,6 +14,7 @@ import random
 import ccxt
 from telegram_utils import send_telegram_message
 from ai_analysis import analyze_crypto
+from load_api_key import load_api_key
 
 # Files to store data
 ALERTS_FILE = "price_alerts.json"
@@ -1402,6 +1403,9 @@ def initialize_alerts():
     """
     Initialize the alert system
     """
+    # Load API key from sensitive-data.txt
+    load_api_key()
+    
     manager = get_alert_manager()
     manager.start_monitoring()
     return manager

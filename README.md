@@ -37,31 +37,27 @@ An advanced cryptocurrency trading bot with AI-powered market analysis, price al
 
 Before running the bot, you need to configure the API keys and other settings:
 
-1. **Telegram Bot Setup**:
+1. **Sensitive Data Setup**:
+   - Rename `sensitive-data.txt.example` to `sensitive-data.txt`
+   - Add your API keys and tokens to this file:
+     ```
+     # OpenAI API Key (required for AI analysis)
+     YOUR_OPENAI_API_KEY_HERE
+     
+     # Telegram Bot Configuration (required for Telegram notifications)
+     TELEGRAM_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
+     TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID_HERE
+     ```
+   - This file is included in `.gitignore` to prevent sensitive data from being committed to Git
+
+2. **Telegram Bot Setup**:
    - Create a new bot using [BotFather](https://t.me/botfather) on Telegram
    - Get your Telegram user ID using [userinfobot](https://t.me/userinfobot)
-   - Update the `telegram_utils.py` file with your Telegram bot token and chat ID:
-     ```python
-     TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-     TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
-     ```
-   - Update the `config.py` file with your Telegram user ID:
-     ```python
-     TELEGRAM_ALLOWED_USERS = ["YOUR_TELEGRAM_USER_ID"]
-     ```
+   - Add your Telegram bot token and chat ID to the `sensitive-data.txt` file
 
-2. **OpenAI API Setup** (for AI analysis):
+3. **OpenAI API Setup** (for AI analysis):
    - Get an API key from [OpenAI](https://platform.openai.com/account/api-keys)
-   - Set the API key in `ai_analysis.py` or as an environment variable:
-     ```python
-     # In ai_analysis.py
-     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
-     ```
-     or
-     ```bash
-     # As an environment variable
-     export OPENAI_API_KEY="your-api-key"
-     ```
+   - Add your OpenAI API key to the `sensitive-data.txt` file
 
 3. **Configure Trading Parameters**:
    - Edit `config.py` to set your preferred trading parameters:

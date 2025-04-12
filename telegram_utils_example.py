@@ -1,16 +1,17 @@
 """
 Telegram utilities for sending messages and handling notifications.
-Rename this file to telegram_utils.py and update with your own values.
 """
 
 import requests
 from models import TradeHistory
+from load_telegram_config import load_telegram_config
 
 # Telegram configuration - exported for use in other modules
-# Replace these with your actual values in a production environment
-# or load them from environment variables or a secure configuration file
-TELEGRAM_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-TELEGRAM_CHAT_ID = "YOUR_TELEGRAM_CHAT_ID"
+# Load from sensitive-data.txt
+# Add the following lines to sensitive-data.txt:
+# TELEGRAM_TOKEN=YOUR_TELEGRAM_BOT_TOKEN
+# TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID
+TELEGRAM_TOKEN, TELEGRAM_CHAT_ID = load_telegram_config()
 
 # Export these constants for use in other modules
 __all__ = ['send_telegram_message', 'record_alert', 'TELEGRAM_TOKEN', 'TELEGRAM_CHAT_ID', 'send_chat_action']

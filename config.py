@@ -18,7 +18,10 @@ SIMULATED_INVESTMENT = 100  # Cantidad en USD para simular compras
 SEND_ALERT = True
 TELEGRAM_COMMANDS_ENABLED = True
 TELEGRAM_POLL_INTERVAL = 10  # Seconds between checking for new messages
-TELEGRAM_ALLOWED_USERS = ["YOUR_TELEGRAM_USER_ID"]  # List of user IDs allowed to send commands
+# Load Telegram chat ID from sensitive-data.txt
+from load_telegram_config import load_telegram_config
+_, TELEGRAM_CHAT_ID = load_telegram_config()
+TELEGRAM_ALLOWED_USERS = [TELEGRAM_CHAT_ID]  # List of user IDs allowed to send commands
 
 # Monitoring settings
 CHECK_INTERVAL = 3600  # Verificar cada hora (en segundos)

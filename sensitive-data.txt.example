@@ -1,0 +1,11 @@
+# OpenAI API Key (required for AI analysis)
+YOUR_OPENAI_API_KEY_HERE
+
+# Telegram Bot Configuration (required for Telegram notifications)
+TELEGRAM_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
+TELEGRAM_CHAT_ID=YOUR_TELEGRAM_CHAT_ID_HERE
+
+# Instructions:
+# 1. Replace the placeholders above with your actual API keys and tokens
+# 2. Rename this file to sensitive-data.txt
+# 3. Make sure sensitive-data.txt is in your .gitignore file to prevent it from being committed to Git

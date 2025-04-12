@@ -4,6 +4,7 @@ import json
 import requests
 from datetime import datetime
 from models import TradeHistory
+from load_api_key import load_api_key
 from config import (
     TELEGRAM_COMMANDS_ENABLED, TELEGRAM_POLL_INTERVAL,
     TELEGRAM_ALLOWED_USERS, SYMBOL
@@ -631,6 +632,9 @@ register_command('analyze_ai', cmd_analyze_ai, "Genera un análisis de mercado c
 
 # Easter eggs
 register_command('to_the_moon', cmd_to_the_moon, "🚀 TO THE MOON!")
+
+# Load API key from sensitive-data.txt
+load_api_key()
 
 # Initialize price alerts system
 try:
