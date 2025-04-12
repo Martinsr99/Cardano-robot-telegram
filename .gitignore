@@ -131,6 +131,7 @@ ENV/
 *.h5
 *.model
 *.joblib
+sensitive-data.txt
 
 # Exceptions - keep these files
 !requirements.txt
