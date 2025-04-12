@@ -10,15 +10,17 @@ import time
 import datetime
 import traceback
 import os
-from load_api_key import load_api_key
-from config import SYMBOL, CHECK_INTERVAL, SEND_ALERT, SIMULATED_INVESTMENT, TELEGRAM_COMMANDS_ENABLED
-from models import Position, TradeHistory
-from data_provider import MarketData
-from signals import SignalGenerator
-from notifier import send_telegram_message, register_bot
+sys.path.append('..')  # Add parent directory to path
+
+from utils.load_api_key import load_api_key
+from config.config import SYMBOL, CHECK_INTERVAL, SEND_ALERT, SIMULATED_INVESTMENT, TELEGRAM_COMMANDS_ENABLED
+from src.models import Position, TradeHistory
+from src.data_provider import MarketData
+from src.signals import SignalGenerator
+from src.notifier import send_telegram_message, register_bot
 from forecast_system.integration import ForecastIntegration
-from price_alerts_refactored import initialize_alerts
-from utils import (
+from src.price_alerts_refactored import initialize_alerts
+from utils.utils import (
     format_price, calculate_quantity, format_position_summary,
     format_profit_loss, format_signal_strength, sleep_with_progress, handle_error
 )
@@ -89,7 +91,7 @@ class TradingBot:
             register_bot(self)
             
             # Register forecast commands
-            import notifier
+            import src.notifier as notifier
             self.forecast_integration.register_telegram_commands(notifier)
             
             # Initialize price alerts system
@@ -425,15 +427,15 @@ def main():
             bot.run_continuously()
         elif sys.argv[1] == "--ui":
             # Import UI module only when needed
-            from ui import start_ui
+            from src.ui import start_ui
             start_ui(bot)
         else:
             print(f"Opción desconocida: {sys.argv[1]}")
             print("Opciones disponibles: --monitor, --ui")
     else:
         bot.run_once()
-        print("\nPara monitoreo continuo, ejecute: python main.py --monitor")
-        print("Para iniciar con interfaz gráfica, ejecute: python main.py --ui")
+        print("\nPara monitoreo continuo, ejecute: python src/main.py --monitor")
+        print("Para iniciar con interfaz gráfica, ejecute: python src/main.py --ui")
 
 if __name__ == "__main__":
     main()
