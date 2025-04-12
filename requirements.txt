@@ -1,0 +1,15 @@
+yfinance
+pandas
+numpy
+matplotlib
+seaborn
+ta
+scikit-learn
+joblib
+ccxt>=2.0.0  # Required for price alerts system
+transformers
+torch
+requests
+openai>=1.0.0  # Required for AI-powered market analysis
+# UI dependencies
+tk  # tkinter is included in standard Python, but this is a reminder
