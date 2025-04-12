@@ -8,6 +8,8 @@ for cryptocurrencies based on current price data.
 import os
 import json
 import requests
+import time
+from datetime import datetime, timedelta
 from openai import OpenAI
 from price_alerts_package.load_api_key import load_api_key
 
@@ -18,6 +20,13 @@ load_api_key()
 def get_api_key():
     """Get the API key from the environment variable."""
     return os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
+
+# Cache for storing analysis results
+# Structure: {asset_name: {'timestamp': timestamp, 'analysis': analysis, 'length': length}}
+analysis_cache = {}
+
+# Cache duration in seconds (1 hour)
+CACHE_DURATION = 3600
 
 # Analysis prompt template
 ANALYSIS_PROMPT = """
@@ -563,17 +572,35 @@ def get_ai_analyzer(api_key=None):
     _instance = AIAnalyzer(api_key)
     return _instance
 
-def analyze_crypto(asset_name, api_key=None):
+def analyze_crypto(asset_name, api_key=None, force_refresh=False):
     """
     Generate market analysis for a cryptocurrency.
     
     Args:
         asset_name (str): Name of the cryptocurrency (e.g., "BTC", "ETH")
         api_key (str, optional): OpenAI API key. If not provided, will use OPENAI_API_KEY from environment.
+        force_refresh (bool, optional): If True, ignore cache and generate a new analysis.
         
     Returns:
         str: Market analysis text
     """
+    global analysis_cache
+    
+    # Normalize asset name for cache key
+    asset_name = asset_name.upper()
+    
+    # Create a cache key
+    cache_key = asset_name
+    
+    # Check if we have a cached analysis and it's still valid
+    current_time = time.time()
+    if not force_refresh and cache_key in analysis_cache:
+        cache_entry = analysis_cache[cache_key]
+        # Check if the cache entry is still valid (less than CACHE_DURATION seconds old)
+        if current_time - cache_entry['timestamp'] < CACHE_DURATION:
+            print(f"📋 Using cached analysis for {asset_name} (cached {int((current_time - cache_entry['timestamp']) / 60)} minutes ago)")
+            return cache_entry['analysis']
+    
     analyzer = get_ai_analyzer(api_key)
     
     # Get current price data
@@ -583,6 +610,13 @@ def analyze_crypto(asset_name, api_key=None):
         return f"❌ Error: Could not fetch price data for {asset_name}. Please check the symbol and try again."
     
     # Generate analysis
+    print(f"🔄 Generating new analysis for {asset_name}...")
     analysis = analyzer.analyze_market(asset_name, price_data['current_price'])
+    
+    # Cache the analysis
+    analysis_cache[cache_key] = {
+        'timestamp': current_time,
+        'analysis': analysis
+    }
     
     return analysis
