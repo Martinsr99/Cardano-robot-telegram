@@ -4,7 +4,7 @@ Technical indicators for market analysis.
 
 import numpy as np
 import pandas as pd
-from config import RSI_PERIOD, SMA_SHORT, SMA_LONG
+from config.config import RSI_PERIOD, SMA_SHORT, SMA_LONG
 
 def calculate_rsi(prices, period=RSI_PERIOD):
     """

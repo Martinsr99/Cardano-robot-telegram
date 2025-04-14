@@ -21,8 +21,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_provider import MarketData
 from signals import SignalGenerator
 from models import TradeHistory
-from utils import format_price
-from config import SYMBOL
+from utils.utils import format_price
+from config.config import SYMBOL
 
 class ForecastIntegration:
     """

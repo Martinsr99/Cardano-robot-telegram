@@ -12,9 +12,9 @@ import threading
 import datetime
 import random
 import ccxt
-from telegram_utils import send_telegram_message
-from ai_analysis import analyze_crypto
-from load_api_key import load_api_key
+from utils.telegram_utils import send_telegram_message
+from src.ai_analysis import analyze_crypto
+from utils.load_api_key import load_api_key
 
 # Files to store data
 ALERTS_FILE = "price_alerts.json"

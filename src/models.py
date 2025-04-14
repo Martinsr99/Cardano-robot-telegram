@@ -6,7 +6,7 @@ import json
 import os
 import datetime
 import uuid
-from config import POSITION_FILE, HISTORY_FILE
+from config.config import POSITION_FILE, HISTORY_FILE
 
 class TradeHistory:
     """

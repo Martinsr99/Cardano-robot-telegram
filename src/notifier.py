@@ -3,14 +3,14 @@ import time
 import json
 import requests
 from datetime import datetime
-from models import TradeHistory
-from load_api_key import load_api_key
-from config import (
+from src.models import TradeHistory
+from utils.load_api_key import load_api_key
+from config.config import (
     TELEGRAM_COMMANDS_ENABLED, TELEGRAM_POLL_INTERVAL,
     TELEGRAM_ALLOWED_USERS, SYMBOL
 )
-from telegram_utils import send_telegram_message, TELEGRAM_TOKEN
-from price_alerts_refactored import (
+from utils.telegram_utils import send_telegram_message, TELEGRAM_TOKEN
+from src.price_alerts_refactored import (
     cmd_alert, cmd_my_alerts, cmd_cancel, cmd_price,
     cmd_alert_history, cmd_buy, cmd_sell, cmd_portfolio,
     cmd_to_the_moon, cmd_analyze_ai, initialize_alerts

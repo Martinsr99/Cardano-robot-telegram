@@ -3,8 +3,8 @@ Trading signals for the trading bot.
 """
 
 import numpy as np
-from config import RSI_OVERBOUGHT, RSI_OVERSOLD, PROFIT_TARGET, STOP_LOSS, SYMBOL
-from utils import format_price
+from config.config import RSI_OVERBOUGHT, RSI_OVERSOLD, PROFIT_TARGET, STOP_LOSS, SYMBOL
+from utils.utils import format_price
 
 class SignalGenerator:
     """

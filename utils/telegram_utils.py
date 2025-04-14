@@ -3,8 +3,8 @@ Telegram utilities for sending messages and handling notifications.
 """
 
 import requests
-from models import TradeHistory
-from load_telegram_config import load_telegram_config
+from src.models import TradeHistory
+from utils.load_telegram_config import load_telegram_config
 
 # Telegram configuration - exported for use in other modules
 # Load from sensitive-data.txt

@@ -5,7 +5,7 @@ Utility functions for the trading bot.
 import time
 import datetime
 import traceback
-from config import SYMBOL, SIMULATED_INVESTMENT, CHECK_INTERVAL
+from config.config import SYMBOL, SIMULATED_INVESTMENT, CHECK_INTERVAL
 
 def format_price(price):
     """

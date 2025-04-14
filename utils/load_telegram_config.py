@@ -13,7 +13,12 @@ def load_telegram_config():
         tuple: (token, chat_id) - Telegram bot token and chat ID
     """
     try:
-        with open('sensitive-data.txt', 'r') as f:
+        # Get the absolute path to sensitive-data.txt
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        root_dir = os.path.dirname(current_dir)
+        sensitive_file_path = os.path.join(root_dir, 'sensitive-data.txt')
+        
+        with open(sensitive_file_path, 'r') as f:
             content = f.read()
             
             # Extract Telegram token

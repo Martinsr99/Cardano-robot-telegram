@@ -10,8 +10,15 @@ import time
 import datetime
 import traceback
 import os
-sys.path.append('..')  # Add parent directory to path
+import importlib.util
+import pathlib
 
+# Add parent directory to path
+current_dir = pathlib.Path(__file__).parent.absolute()
+parent_dir = current_dir.parent.absolute()
+sys.path.insert(0, str(parent_dir))
+
+# Import modules
 from utils.load_api_key import load_api_key
 from config.config import SYMBOL, CHECK_INTERVAL, SEND_ALERT, SIMULATED_INVESTMENT, TELEGRAM_COMMANDS_ENABLED
 from src.models import Position, TradeHistory
