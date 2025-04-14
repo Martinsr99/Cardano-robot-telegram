@@ -24,8 +24,12 @@ def load_api_key():
             
             # Check if the file contains the new format with multiple keys
             if "TELEGRAM_TOKEN=" in content:
-                # Get the first line which should be the OpenAI API key
-                api_key = content.split('\n')[0].strip()
+                # Extract the OpenAI API key using regex
+                api_key_match = re.search(r'sk-[a-zA-Z0-9_-]+', content)
+                if api_key_match:
+                    api_key = api_key_match.group(0)
+                else:
+                    raise ValueError("OpenAI API key not found in sensitive-data.txt")
             else:
                 # Old format - the entire file is the API key
                 api_key = content.strip()

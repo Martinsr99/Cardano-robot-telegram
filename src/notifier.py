@@ -580,7 +580,7 @@ def cmd_forecast(args, bot, chat_id=None):
         
         # Use AI analysis for forecasts
         try:
-            from ai_analysis import analyze_crypto
+            from src.ai_analysis import analyze_crypto
             
             # Get analysis from OpenAI with specified length
             ai_analysis = analyze_crypto(symbol, length)

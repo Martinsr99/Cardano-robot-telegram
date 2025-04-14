@@ -1362,7 +1362,7 @@ def cmd_analyze_ai(args, bot, user_id=None, chat_id=None):
     
     # Send chat action and waiting message to indicate analysis is in progress
     if chat_id:
-        from telegram_utils import send_chat_action, send_telegram_message
+        from utils.telegram_utils import send_chat_action, send_telegram_message
         # Send typing action to indicate processing
         send_chat_action("typing", chat_id)
         # Send a message to inform the user that analysis is being generated

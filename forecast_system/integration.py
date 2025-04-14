@@ -118,7 +118,7 @@ class ForecastIntegration:
         # Enviar alertas si se detectan movimientos significativos
         if send_alert:
             from notifier import send_telegram_message
-            from config import SYMBOL
+            from config.config import SYMBOL
             
             # Alerta de bajada
             if forecast_data.get('expected_drop', False):
@@ -338,7 +338,7 @@ class ForecastIntegration:
             
             # Send chat action and waiting message to indicate analysis is in progress
             if chat_id:
-                from telegram_utils import send_chat_action, send_telegram_message
+                from utils.telegram_utils import send_chat_action, send_telegram_message
                 # Send typing action to indicate processing
                 send_chat_action("typing", chat_id)
                 # Send a message to inform the user that analysis is being generated
