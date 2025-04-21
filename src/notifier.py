@@ -187,19 +187,31 @@ def handle_command(command, args, chat_id, user_id=None):
             f"*Comandos disponibles:*\n"
         )
         
-        # Add command descriptions
-        for cmd, info in command_handlers.items():
-            welcome_message += f"/{cmd} - {info['description']}\n"
+        # Categorías de comandos
+        categories = {
+            "Comandos Principales": ["forecast", "status"],
+            "Historial y Análisis": ["history", "signals", "analyses"],
+            "Alertas de Precio": ["alert", "my_alerts", "cancel"],
+            "Portafolio Virtual": ["portfolio", "buy", "sell"],
+            "Adicionales": ["to_the_moon"]
+        }
+        
+        # Añadir comandos por categoría
+        for category, cmds in categories.items():
+            welcome_message += f"*{category}*\n"
+            for cmd in cmds:
+                if cmd in command_handlers:
+                    welcome_message += f"/{cmd} - {command_handlers[cmd]['description']}\n"
+            welcome_message += "\n"
         
         # Add help command
-        welcome_message += f"\n/help - Muestra esta ayuda\n\n"
+        welcome_message += f"/help - Muestra esta ayuda\n\n"
         
         # Add usage tips
         welcome_message += (
             "*Consejos de uso:*\n"
             "• Usa /status para ver el estado actual del bot\n"
-            "• Usa /trend para ver el análisis de tendencia del mercado\n"
-            "• Usa /price para ver el precio actual e indicadores\n"
+            "• Usa /forecast para obtener un pronóstico financiero detallado\n"
             "• Usa /history para ver el historial de operaciones\n\n"
             "¡Disfruta usando el bot! 📈"
         )
@@ -215,7 +227,7 @@ def handle_command(command, args, chat_id, user_id=None):
                           'buy', 'sell', 'portfolio', 'to_the_moon']:
                 response = command_handlers[command]['handler'](args, bot_instance, user_id)
             # Check if the command handler needs chat_id for sending initial messages
-            elif command in ['forecast', 'analyze_ai']:
+            elif command in ['forecast', 'analyses']:
                 response = command_handlers[command]['handler'](args, bot_instance, user_id, chat_id)
             else:
                 response = command_handlers[command]['handler'](args, bot_instance)
@@ -237,9 +249,22 @@ def send_help(chat_id):
     # Add built-in commands
     help_text += "/help - Muestra esta ayuda\n\n"
     
-    # Add registered commands
-    for cmd, info in command_handlers.items():
-        help_text += f"/{cmd} - {info['description']}\n"
+    # Categorías de comandos
+    categories = {
+        "Comandos Principales": ["forecast", "status"],
+        "Historial y Análisis": ["history", "signals", "analyses"],
+        "Alertas de Precio": ["alert", "my_alerts", "cancel"],
+        "Portafolio Virtual": ["portfolio", "buy", "sell"],
+        "Adicionales": ["to_the_moon"]
+    }
+    
+    # Añadir comandos por categoría
+    for category, cmds in categories.items():
+        help_text += f"*{category}*\n"
+        for cmd in cmds:
+            if cmd in command_handlers:
+                help_text += f"/{cmd} - {command_handlers[cmd]['description']}\n"
+        help_text += "\n"
     
     send_telegram_message(help_text, chat_id=chat_id)
 
@@ -549,88 +574,183 @@ def cmd_trend(args, bot):
     except Exception as e:
         return f"❌ Error al analizar tendencia: {str(e)}"
 
-def cmd_forecast(args, bot, chat_id=None):
-    """Get price range forecast"""
+# Financial assistant commands
+def cmd_financial_forecast(args, bot, user_id=None, chat_id=None):
+    """Get financial forecast with technical analysis"""
     if not bot:
-        return "❌ Bot no disponible"
+        return "❌ Bot no inicializado"
     
     try:
         # Parse arguments
         parts = args.strip().split() if args else [SYMBOL.split('-')[0]]
         symbol = parts[0].upper()
         
-        # Check if length is specified
-        length = "normal"  # Default
-        if len(parts) > 1:
-            length_arg = parts[1].lower()
-            if length_arg in ["corto", "short"]:
-                length = "short"
-            elif length_arg in ["largo", "long"]:
-                length = "long"
+        # Check if force flag is present
+        force_new = False
+        if len(parts) > 1 and parts[1].lower() in ["force", "forzar", "-f"]:
+            force_new = True
         
         # Send initial message to indicate analysis is in progress
         if chat_id:
-            initial_message = f"🧠 Generando análisis de mercado para {symbol} (formato {length})...\n\nEsto puede tardar unos segundos. Por favor, espera mientras nuestro analista de IA evalúa la situación actual del mercado."
-            send_telegram_message(initial_message, chat_id=chat_id)
+            from utils.telegram_utils import send_chat_action, send_telegram_message
+            # Send typing action to indicate processing
+            send_chat_action("typing", chat_id)
+            
+            # Prepare waiting message
+            if force_new:
+                waiting_message = f"🧠 Forzando nuevo pronóstico financiero para {symbol}...\n\nEsto puede tardar unos segundos. Por favor, espera mientras nuestro asistente financiero analiza el mercado."
+            else:
+                waiting_message = f"🧠 Generando pronóstico financiero para {symbol}...\n\nEsto puede tardar unos segundos si no hay un análisis reciente. Por favor, espera mientras nuestro asistente financiero procesa la solicitud."
+            
+            send_telegram_message(waiting_message, chat_id=chat_id)
         
-        # Get current price
-        current_price = bot.last_price
-        if not current_price:
-            return f"❌ No se pudo obtener el precio actual para {symbol}"
-        
-        # Use AI analysis for forecasts
+        # Use financial assistant for forecasts
         try:
-            from src.ai_analysis import analyze_crypto
+            from src.financial_assistant import get_asset_forecast
+            from config.config import FINANCIAL_ANALYSIS_MIN_INTERVAL
             
-            # Get analysis from OpenAI with specified length
-            ai_analysis = analyze_crypto(symbol, length)
+            # Get forecast from financial assistant
+            forecast = get_asset_forecast(symbol, force_new=force_new)
             
-            # If there was an error in the analysis, return the error message
-            if ai_analysis.startswith("❌ Error"):
-                return ai_analysis
+            # If there was an error in the forecast, return the error message
+            if forecast.startswith("❌ Error"):
+                return forecast
             
             # Get TradingView chart link
             chart_link = get_tradingview_link(symbol)
             
-            # Compose response with AI analysis
-            response = (
-                f"🧠 Análisis de Mercado con IA - {symbol}\n\n"
-                f"{ai_analysis}\n\n"
-                f"[Ver gráfico en TradingView]({chart_link})"
-            )
+            # Compose response with forecast
+            response = f"{forecast}\n\n"
+            
+            # Add note about forcing new analysis if not forced
+            if not force_new:
+                response += f"_Nota: Para forzar un nuevo análisis independientemente del tiempo transcurrido ({FINANCIAL_ANALYSIS_MIN_INTERVAL} horas), usa:_\n`/financial_forecast {symbol} force`\n\n"
+            
+            # Add chart link
+            response += f"[Ver gráfico en TradingView]({chart_link})"
             
             return response
         except Exception as e:
-            # If there's an error with the AI analysis, return a detailed error message
+            # If there's an error with the forecast, return a detailed error message
             error_msg = str(e)
-            return f"❌ Error al generar análisis con IA: {error_msg}\n\nPor favor, intenta de nuevo más tarde o contacta al administrador del bot."
+            return f"❌ Error al generar pronóstico financiero: {error_msg}\n\nPor favor, intenta de nuevo más tarde o contacta al administrador del bot."
     except Exception as e:
         return f"❌ Error al generar pronóstico: {str(e)}"
 
-# Register default commands
-register_command('status', cmd_status, "Muestra el estado actual del bot")
-register_command('history', cmd_history, "Muestra el historial de operaciones (uso: /history [número])")
-register_command('signals', cmd_signals, "Muestra las señales recientes (uso: /signals [número])")
-register_command('price', cmd_price, "Muestra el precio actual e indicadores (uso: /price SYMBOL)")
-register_command('analyze', cmd_analyze, "Fuerza un análisis del mercado")
-register_command('trend', cmd_trend, "Muestra el análisis de tendencia del mercado")
-register_command('forecast', cmd_forecast, "Muestra el pronóstico de rango de precios (uso: /forecast [SYMBOL] [corto|normal|largo])")
+def cmd_financial_analyses(args, bot, user_id=None, chat_id=None):
+    """List saved financial analyses"""
+    if not bot:
+        return "❌ Bot no inicializado"
+    
+    try:
+        # Get financial assistant
+        from src.financial_assistant import get_financial_assistant
+        assistant = get_financial_assistant()
+        
+        # Get all analyses
+        analyses = assistant.analyses
+        
+        if not analyses:
+            return "📊 No hay análisis financieros guardados."
+        
+        # Parse arguments for filtering
+        show_all = True
+        symbol = None
+        limit = 5  # Default limit
+        
+        if args:
+            parts = args.strip().split()
+            if len(parts) > 0:
+                # First argument could be a symbol or a limit
+                try:
+                    limit = int(parts[0])
+                except ValueError:
+                    symbol = parts[0].upper()
+                    if len(parts) > 1:
+                        try:
+                            limit = int(parts[1])
+                        except ValueError:
+                            pass
+        
+        # Filter analyses
+        filtered_analyses = []
+        for analysis in analyses:
+            # Filter by symbol if specified
+            if symbol and analysis["asset"] != symbol:
+                continue
+            
+            filtered_analyses.append(analysis)
+        
+        if not filtered_analyses:
+            return f"📊 No hay análisis que coincidan con los criterios de filtrado."
+        
+        # Sort analyses by timestamp (newest first)
+        filtered_analyses.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        # Limit the number of analyses
+        filtered_analyses = filtered_analyses[:limit]
+        
+        # Compose response
+        response = f"*📊 Análisis Financieros ({len(filtered_analyses)})*\n\n"
+        
+        for analysis in filtered_analyses:
+            # Get basic info
+            asset = analysis["asset"]
+            timestamp = datetime.fromisoformat(analysis["timestamp"]).strftime("%Y-%m-%d %H:%M")
+            is_closed = analysis.get("closed", False)
+            
+            # Get prediction info
+            trend = analysis["prediction"]["trend"]
+            min_price = analysis["prediction"]["min_price"]
+            max_price = analysis["prediction"]["max_price"]
+            
+            # Format status
+            status = "🔴 CERRADO" if is_closed else "🟢 ABIERTO"
+            
+            # Add analysis to response
+            response += f"*{asset} | {timestamp} | {status}*\n"
+            response += f"Tendencia: {trend} | Rango: ${min_price:.4f} - ${max_price:.4f}\n"
+            
+            # Add additional info for closed analyses
+            if is_closed:
+                actual_price = analysis["actual_price"]
+                precision = analysis["precision"]
+                response += f"Precio actual: ${actual_price:.4f} | Precisión: {precision}\n"
+            
+            response += "\n"
+        
+        # Add usage instructions
+        response += "Para ver más detalles, usa el comando:\n"
+        response += "/financial_forecast [SYMBOL]"
+        
+        return response
+    except Exception as e:
+        # If there's an error, return a detailed error message
+        error_msg = str(e)
+        return f"❌ Error al obtener análisis financieros: {error_msg}\n\nPor favor, intenta de nuevo más tarde o contacta al administrador del bot."
 
-# Price alert commands
-register_command('alert', cmd_alert, "Crea o muestra alertas de precio (uso: /alert SYMBOL PRICE)")
-register_command('my_alerts', cmd_my_alerts, "Muestra tus alertas de precio activas")
-register_command('cancel', cmd_cancel, "Cancela alertas de precio (uso: /cancel SYMBOL o /cancel all)")
-register_command('alert_history', cmd_alert_history, "Muestra el historial de alertas activadas")
+# Registrar comandos en orden de importancia (de más a menos importantes)
 
-# Virtual portfolio commands
+# 1. Comandos principales de trading
+register_command('forecast', cmd_financial_forecast, "Genera un pronóstico financiero con análisis técnico detallado (uso: /forecast SYMBOL [force])")
+register_command('status', cmd_status, "Muestra el estado actual del bot, precio y posiciones abiertas")
+
+# 2. Comandos de historial y análisis
+register_command('history', cmd_history, "Muestra el historial de operaciones completadas (uso: /history [número])")
+register_command('signals', cmd_signals, "Muestra las señales automáticas recientes de trading")
+register_command('analyses', cmd_financial_analyses, "Muestra los análisis financieros detallados guardados")
+
+# 3. Comandos de alertas de precio
+register_command('alert', cmd_alert, "Crea alertas de precio manuales (uso: /alert SYMBOL PRICE)")
+register_command('my_alerts', cmd_my_alerts, "Muestra tus alertas de precio manuales activas")
+register_command('cancel', cmd_cancel, "Cancela alertas de precio manuales (uso: /cancel SYMBOL o /cancel all)")
+
+# 4. Comandos de portafolio virtual
+register_command('portfolio', cmd_portfolio, "Muestra tu portafolio virtual completo")
 register_command('buy', cmd_buy, "Compra criptomonedas en el portafolio virtual (uso: /buy SYMBOL AMOUNT_USD)")
 register_command('sell', cmd_sell, "Vende criptomonedas del portafolio virtual (uso: /sell SYMBOL AMOUNT)")
-register_command('portfolio', cmd_portfolio, "Muestra tu portafolio virtual")
 
-# AI analysis command
-register_command('analyze_ai', cmd_analyze_ai, "Genera un análisis de mercado con IA (uso: /analyze_ai SYMBOL [corto|normal|largo])")
-
-# Easter eggs
+# 5. Comandos adicionales
 register_command('to_the_moon', cmd_to_the_moon, "🚀 TO THE MOON!")
 
 # Load API key from sensitive-data.txt

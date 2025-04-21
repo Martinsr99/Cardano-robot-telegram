@@ -6,7 +6,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from config.config import SYMBOL, PERIOD, INTERVAL
-from indicators import get_all_indicators
+from src.indicators import get_all_indicators
 
 class MarketData:
     """

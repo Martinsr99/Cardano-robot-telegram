@@ -1,6 +1,7 @@
 """
 Configuration settings for the trading bot.
 """
+import os
 
 # Market configuration
 SYMBOL = "ADA-USD"
@@ -32,3 +33,7 @@ RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30
 SMA_SHORT = 20
 SMA_LONG = 50
+
+# Financial assistant configuration
+# Minimum time between financial analyses in hours (default: 4 hours)
+FINANCIAL_ANALYSIS_MIN_INTERVAL = int(os.environ.get("FINANCIAL_ANALYSIS_MIN_INTERVAL", "4"))

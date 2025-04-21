@@ -5,6 +5,19 @@ Load API key from sensitive-data.txt and set it as an environment variable.
 import os
 import re
 
+def get_api_key():
+    """
+    Get the API key from the environment variable.
+    
+    Returns:
+        str: API key
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        # Try to load it if not found
+        api_key = load_api_key()
+    return api_key
+
 def load_api_key():
     """
     Load API key from sensitive-data.txt and set it as an environment variable.

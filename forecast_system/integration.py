@@ -817,6 +817,38 @@ class ForecastIntegration:
         def cmd_forecast(args, bot, user_id=None, chat_id=None):
             self.set_bot(bot)
             return self.get_forecast_command_response(args, chat_id)
+            
+        # Comando para generar un pronóstico financiero
+        def cmd_financial_forecast(args, bot, user_id=None, chat_id=None):
+            self.set_bot(bot)
+            try:
+                # Importar el asistente financiero
+                from src.financial_assistant import get_asset_forecast
+                
+                # Parsear argumentos
+                parts = args.strip().split() if args else [self.bot.market_data.symbol.split('-')[0]]
+                symbol = parts[0].upper()
+                
+                # Enviar mensaje inicial
+                if chat_id:
+                    from utils.telegram_utils import send_chat_action, send_telegram_message
+                    send_chat_action("typing", chat_id)
+                    waiting_message = f"🧠 Generando pronóstico financiero para {symbol}...\n\nEsto puede tardar unos segundos. Por favor, espera mientras nuestro asistente financiero analiza el mercado."
+                    send_telegram_message(waiting_message, chat_id=chat_id)
+                
+                # Obtener pronóstico
+                forecast = get_asset_forecast(symbol)
+                
+                # Obtener enlace a TradingView
+                from src.notifier import get_tradingview_link
+                chart_link = get_tradingview_link(symbol)
+                
+                # Componer respuesta
+                response = f"{forecast}\n\n[Ver gráfico en TradingView]({chart_link})"
+                
+                return response
+            except Exception as e:
+                return f"❌ Error al generar pronóstico financiero: {str(e)}"
         
         # Comando para mostrar estadísticas de precisión
         def cmd_accuracy(args, bot):
