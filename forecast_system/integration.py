@@ -327,57 +327,32 @@ class ForecastIntegration:
             parts = args.strip().split() if args else [SYMBOL.split('-')[0]]
             symbol = parts[0].upper()
             
-            # Check if length is specified
-            length = "normal"  # Default
-            if len(parts) > 1:
-                length_arg = parts[1].lower()
-                if length_arg in ["corto", "short"]:
-                    length = "short"
-                elif length_arg in ["largo", "long"]:
-                    length = "long"
-            
             # Send chat action and waiting message to indicate analysis is in progress
             if chat_id:
                 from utils.telegram_utils import send_chat_action, send_telegram_message
                 # Send typing action to indicate processing
                 send_chat_action("typing", chat_id)
                 # Send a message to inform the user that analysis is being generated
-                waiting_message = f"🧠 Generando análisis de mercado para {symbol} (formato {length})...\n\nEsto puede tardar unos segundos. Por favor, espera mientras nuestro analista de IA evalúa la situación actual del mercado."
+                waiting_message = f"🧠 Generando pronóstico financiero para {symbol}...\n\nEsto puede tardar unos segundos. Por favor, espera mientras nuestro asistente financiero analiza el mercado."
                 send_telegram_message(waiting_message, chat_id=chat_id)
             
-            # Get current price
-            current_price = self.bot.last_price
-            if not current_price:
-                return f"❌ No se pudo obtener el precio actual para {symbol}"
+            # Importar el asistente financiero
+            from src.financial_assistant import get_asset_forecast
             
-            # Use AI analysis for forecasts
-            try:
-                from ai_analysis import analyze_crypto
-                
-                # Get analysis from OpenAI with specified length
-                ai_analysis = analyze_crypto(symbol, length)
-                
-                # If there was an error in the analysis, return the error message
-                if ai_analysis.startswith("❌ Error"):
-                    return ai_analysis
-                
-                # Get TradingView chart link
-                chart_link = f"https://es.tradingview.com/symbols/{symbol}USD/"
-                
-                # Compose response with AI analysis
-                response = (
-                    f"🧠 Análisis de Mercado con IA - {symbol}\n\n"
-                    f"{ai_analysis}\n\n"
-                    f"[Ver gráfico en TradingView]({chart_link})"
-                )
-                
-                return response
-            except Exception as e:
-                # If there's an error with the AI analysis, return a detailed error message
-                error_msg = str(e)
-                return f"❌ Error al generar análisis con IA: {error_msg}\n\nPor favor, intenta de nuevo más tarde o contacta al administrador del bot."
+            # Obtener pronóstico (esto también cerrará análisis antiguos)
+            forecast = get_asset_forecast(symbol)
+            
+            # Obtener enlace a TradingView
+            from src.notifier import get_tradingview_link
+            chart_link = get_tradingview_link(symbol)
+            
+            # Componer respuesta
+            response = f"{forecast}\n\n[Ver gráfico en TradingView]({chart_link})"
+            
+            return response
         except Exception as e:
-            return f"❌ Error al generar pronóstico: {str(e)}"
+            error_msg = str(e)
+            return f"❌ Error al generar pronóstico financiero: {error_msg}\n\nPor favor, intenta de nuevo más tarde o contacta al administrador del bot."
     
     def get_forecast_accuracy_response(self) -> str:
         """
@@ -876,7 +851,7 @@ class ForecastIntegration:
             return self.get_positions_response()
         
         # Registrar comandos
-        notifier.register_command('forecast', cmd_forecast, "Muestra el pronóstico de rango de precios para las próximas horas y días")
+        notifier.register_command('forecast', cmd_forecast, "Muestra el pronóstico financiero con análisis de tendencia y soporte/resistencia")
         notifier.register_command('accuracy', cmd_accuracy, "Muestra estadísticas de precisión del sistema de pronóstico")
         notifier.register_command('dropalerts', cmd_dropalerts, "Muestra alertas de bajada y verifica las pendientes")
         notifier.register_command('risealerts', cmd_risealerts, "Muestra alertas de subida y verifica las pendientes")

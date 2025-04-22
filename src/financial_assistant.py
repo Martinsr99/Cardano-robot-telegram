@@ -447,6 +447,29 @@ def get_financial_assistant(api_key=None):
 
 from config.config import FINANCIAL_ANALYSIS_MIN_INTERVAL
 
+def _debug_print_analyses(assistant, asset):
+    """Función de depuración para imprimir todos los análisis de un activo"""
+    print(f"\n===== DEPURACIÓN: ANÁLISIS PARA {asset} =====")
+    
+    # Buscar todos los análisis para este símbolo
+    asset_analyses = [a for a in assistant.analyses if a["asset"] == asset]
+    print(f"Total de análisis para {asset}: {len(asset_analyses)}")
+    
+    # Mostrar análisis abiertos
+    open_analyses = [a for a in asset_analyses if not a.get("closed", False)]
+    print(f"Análisis abiertos para {asset}: {len(open_analyses)}")
+    
+    for a in open_analyses:
+        timestamp = datetime.fromisoformat(a["timestamp"])
+        now = datetime.now()
+        hours_elapsed = (now - timestamp).total_seconds() / 3600
+        print(f"  ID: {a['id']} | Fecha: {timestamp} | Antigüedad: {hours_elapsed:.1f} horas")
+        print(f"  Rango: ${a['prediction']['min_price']:.4f} - ${a['prediction']['max_price']:.4f}")
+        print(f"  Cerrado: {a.get('closed', False)}")
+        print("  ---")
+    
+    print("===========================================\n")
+
 def get_asset_forecast(asset: str, api_key=None, force_new=False) -> str:
     """
     Obtiene un pronóstico para un activo.
@@ -460,34 +483,138 @@ def get_asset_forecast(asset: str, api_key=None, force_new=False) -> str:
     Returns:
         str: Texto formateado del pronóstico
     """
+    print(f"\n🔍 Solicitando pronóstico para {asset}")
     assistant = get_financial_assistant(api_key)
     
-    # Comprobar si hay un análisis reciente
-    if not force_new:
-        latest_analysis = assistant.get_latest_analysis(asset)
-        if latest_analysis:
-            # Calcular tiempo transcurrido desde el último análisis
-            timestamp = datetime.fromisoformat(latest_analysis["timestamp"])
-            now = datetime.now()
-            hours_elapsed = (now - timestamp).total_seconds() / 3600
+    # Imprimir estado inicial de los análisis
+    _debug_print_analyses(assistant, asset)
+    
+    # Obtener el precio actual para verificar y cerrar análisis antiguos
+    current_price = None
+    try:
+        crypto_data = CryptoDataProvider(symbol=asset)
+        if crypto_data.fetch_data():
+            current_price = crypto_data.get_latest_price()
+            print(f"💰 Precio actual de {asset}: ${current_price:.4f}")
+        else:
+            print(f"❌ No se pudieron obtener datos para {asset}")
+            return f"❌ Error: No se pudieron obtener datos para {asset}"
+    except Exception as e:
+        print(f"❌ Error al obtener precio actual: {str(e)}")
+        return f"❌ Error al obtener precio actual: {str(e)}"
+    
+    # Buscar todos los análisis para este símbolo
+    asset_analyses = [a for a in assistant.analyses if a["asset"] == asset]
+    print(f"📋 Encontrados {len(asset_analyses)} análisis para {asset}")
+    
+    # Filtrar los análisis que tienen más de 24 horas y no están cerrados
+    now = datetime.now()
+    limit_time = now - timedelta(hours=24)
+    limit_timestamp = limit_time.isoformat()
+    
+    old_analyses = [a for a in asset_analyses if a["timestamp"] < limit_timestamp and not a.get("closed", False)]
+    print(f"⏰ Encontrados {len(old_analyses)} análisis antiguos (>24h) abiertos para {asset}")
+    
+    # Cerrar todos los análisis antiguos encontrados
+    previous_analysis = None
+    for old_analysis in old_analyses:
+        try:
+            print(f"🔒 Intentando cerrar análisis con ID {old_analysis['id']} (timestamp: {old_analysis['timestamp']})")
             
-            # Si el análisis es reciente (menos de X horas), devolver ese
-            if hours_elapsed < FINANCIAL_ANALYSIS_MIN_INTERVAL:
-                print(f"📊 Usando análisis existente de hace {hours_elapsed:.1f} horas (mínimo: {FINANCIAL_ANALYSIS_MIN_INTERVAL} horas)")
-                previous_analysis = None
+            # Verificar si el análisis ya está cerrado (doble verificación)
+            if old_analysis.get("closed", False):
+                print(f"⚠️ El análisis {old_analysis['id']} ya está marcado como cerrado")
+                continue
                 
-                # Comprobar si hay un análisis anterior con más de 24 horas para comparación
-                old_analysis = assistant.get_analysis_older_than(asset, hours=24)
-                if old_analysis and old_analysis["id"] != latest_analysis["id"]:
-                    # Marcar como cerrado si no lo está ya
-                    if not old_analysis.get("closed", False):
-                        current_price = latest_analysis["current_price"]
-                        previous_analysis = assistant.mark_analysis_as_closed(old_analysis["id"], current_price)
+            # Cerrar el análisis
+            closed_analysis = assistant.mark_analysis_as_closed(old_analysis["id"], current_price)
+            print(f"✅ Análisis antiguo de {asset} con ID {old_analysis['id']} cerrado correctamente")
+            
+            # Guardar el análisis cerrado más reciente para mostrarlo en la comparación
+            if previous_analysis is None or datetime.fromisoformat(closed_analysis["timestamp"]) > datetime.fromisoformat(previous_analysis["timestamp"]):
+                previous_analysis = closed_analysis
+                print(f"📌 Guardando análisis {closed_analysis['id']} como referencia para comparación")
+        except Exception as e:
+            print(f"❌ Error al cerrar análisis {old_analysis['id']}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    # Verificar que los análisis se cerraron correctamente
+    print("\n🔍 Verificando cierre de análisis antiguos...")
+    still_open = [a for a in assistant.analyses if a["asset"] == asset and 
+                 a["timestamp"] < limit_timestamp and not a.get("closed", False)]
+    
+    if still_open:
+        print(f"⚠️ ADVERTENCIA: Aún hay {len(still_open)} análisis antiguos abiertos:")
+        for a in still_open:
+            print(f"  - ID: {a['id']} | Timestamp: {a['timestamp']} | Cerrado: {a.get('closed', False)}")
+            
+            # Forzar cierre nuevamente
+            try:
+                print(f"🔄 Intentando forzar cierre del análisis {a['id']}...")
+                # Modificar directamente el análisis en la lista
+                for idx, analysis in enumerate(assistant.analyses):
+                    if analysis["id"] == a["id"]:
+                        assistant.analyses[idx]["closed"] = True
+                        assistant.analyses[idx]["closed_timestamp"] = datetime.now().isoformat()
+                        assistant.analyses[idx]["actual_price"] = current_price
+                        print(f"✅ Forzado cierre del análisis {a['id']}")
+                        break
+            except Exception as e:
+                print(f"❌ Error al forzar cierre: {str(e)}")
+    else:
+        print("✅ Todos los análisis antiguos están correctamente cerrados")
+    
+    # Guardar cambios después de forzar cierres
+    assistant._save_analyses()
+    
+    # Imprimir estado después de cerrar análisis antiguos
+    _debug_print_analyses(assistant, asset)
+    
+    # Comprobar si hay un análisis reciente que podamos reutilizar
+    if not force_new:
+        # Obtener el análisis más reciente para este activo
+        latest_analysis = assistant.get_latest_analysis(asset)
+        print(f"🔍 Buscando análisis reciente para {asset}...")
+        
+        if latest_analysis:
+            print(f"📋 Análisis más reciente: ID {latest_analysis['id']} | Timestamp: {latest_analysis['timestamp']} | Cerrado: {latest_analysis.get('closed', False)}")
+            
+            if not latest_analysis.get("closed", False):
+                # Verificar que no sea uno de los que acabamos de cerrar
+                is_old_analysis = False
+                for old_analysis in old_analyses:
+                    if latest_analysis["id"] == old_analysis["id"]:
+                        is_old_analysis = True
+                        print(f"⚠️ El análisis reciente {latest_analysis['id']} es uno de los antiguos que debería haberse cerrado")
+                        break
+                
+                # Verificar antigüedad
+                timestamp = datetime.fromisoformat(latest_analysis["timestamp"])
+                hours_elapsed = (now - timestamp).total_seconds() / 3600
+                
+                if hours_elapsed >= 24:
+                    print(f"⚠️ El análisis reciente tiene {hours_elapsed:.1f} horas (>24h), debería cerrarse")
+                    is_old_analysis = True
+                
+                if not is_old_analysis:
+                    # Si el análisis es reciente (menos de X horas), devolver ese
+                    if hours_elapsed < FINANCIAL_ANALYSIS_MIN_INTERVAL:
+                        print(f"📊 Usando análisis existente de hace {hours_elapsed:.1f} horas (mínimo: {FINANCIAL_ANALYSIS_MIN_INTERVAL} horas)")
+                        
+                        # Formatear salida
+                        result = assistant.format_analysis_output(latest_analysis, previous_analysis)
+                        
+                        # Verificación final
+                        _debug_print_analyses(assistant, asset)
+                        
+                        return result
                     else:
-                        previous_analysis = old_analysis
-                
-                # Formatear salida
-                return assistant.format_analysis_output(latest_analysis, previous_analysis)
+                        print(f"⏰ El análisis reciente tiene {hours_elapsed:.1f} horas (>={FINANCIAL_ANALYSIS_MIN_INTERVAL}h), generando uno nuevo")
+            else:
+                print(f"🔒 El análisis más reciente ya está cerrado, generando uno nuevo")
+        else:
+            print(f"📭 No se encontró ningún análisis para {asset}, generando uno nuevo")
     
     # Si no hay análisis reciente o se fuerza uno nuevo, generar uno
     return assistant.get_forecast(asset)
