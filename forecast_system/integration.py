@@ -53,7 +53,8 @@ class ForecastIntegration:
     
     def check_forecast_on_startup(self) -> Dict[str, Any]:
         """
-        Comprueba el último pronóstico al iniciar el bot.
+        Comprueba el último pronóstico al iniciar el bot y genera uno nuevo si es necesario.
+        Utiliza la misma lógica que el comando /forecast para cerrar análisis antiguos.
         
         Returns:
             Resultados de la comprobación
@@ -66,15 +67,39 @@ class ForecastIntegration:
         if not current_price:
             return {"error": "Precio actual no disponible"}
         
-        # Comprobar último pronóstico
-        check_results = self.forecast_system.check_last_forecast(current_price)
+        print("🔮 Comprobando pronósticos financieros al iniciar...")
         
-        # Si hay suficientes evaluaciones, entrenar el modelo
-        stats = self.forecast_system.get_system_stats()
-        if stats["evaluation_count"] >= 10:
-            self.forecast_system.train_model()
-        
-        return check_results
+        try:
+            # Importar el asistente financiero
+            from src.financial_assistant import get_asset_forecast
+            from config.config import SYMBOL
+            
+            # Obtener el símbolo principal
+            symbol = SYMBOL.split('-')[0]
+            
+            # Obtener pronóstico (esto también cerrará análisis antiguos)
+            print(f"📊 Generando pronóstico financiero para {symbol} al iniciar...")
+            forecast_text = get_asset_forecast(symbol)
+            
+            # Extraer información relevante para devolver como resultado
+            result = {
+                "message": f"Pronóstico financiero generado para {symbol}",
+                "forecast_available": True,
+                "symbol": symbol,
+                "current_price": current_price
+            }
+            
+            # Si hay suficientes evaluaciones, entrenar el modelo
+            stats = self.forecast_system.get_system_stats()
+            if stats["evaluation_count"] >= 10:
+                self.forecast_system.train_model()
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error al generar pronóstico financiero: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {"error": error_msg}
     
     def generate_new_forecast(self, send_alert=True) -> Dict[str, Any]:
         """

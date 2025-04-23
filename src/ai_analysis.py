@@ -26,38 +26,50 @@ CACHE_DURATION = 3600
 
 # Analysis prompt templates for different lengths
 SHORT_PROMPT = """
-You are a crypto analyst. Analyze {asset_name} (${current_price}) market situation briefly.
+You are a crypto analyst. Analyze {asset_name} market situation briefly.
+
+Current price: ${current_price:.4f}
+Current volume: {volume_status}
 
 Keep your response very concise (max 150 words) and focus on:
 1. Current trend (bullish/bearish/neutral)
-2. Key support/resistance levels
+2. Key support/resistance levels (use narrower ranges unless high volume justifies wider ranges)
 3. Short-term outlook (1-3 days)
 
 Format with clear sections. Use plain text without asterisks for formatting.
+Always include the current price in your analysis.
 """
 
 NORMAL_PROMPT = """
-You are a crypto analyst for Telegram users. Analyze {asset_name} (${current_price}) market situation.
+You are a crypto analyst for Telegram users. Analyze {asset_name} market situation.
+
+Current price: ${current_price:.4f}
+Current volume: {volume_status}
 
 Keep your response concise (max 250 words) with these sections:
-1. 📈 Market Summary: Recent price action and trend
-2. 🧠 Technical Analysis: Support/resistance levels and key indicators
+1. 📈 Market Summary: Recent price action and trend (always mention current price)
+2. 🧠 Technical Analysis: Support/resistance levels and key indicators (use narrower ranges unless high volume justifies wider ranges)
 3. 💡 Trading Outlook: Short-term perspective (1-7 days)
 
 Format with clear sections. Use plain text without asterisks for formatting.
+Always include the current price in your analysis.
 """
 
 LONG_PROMPT = """
-You are a crypto analyst for Telegram users. Provide detailed analysis for {asset_name} (${current_price}).
+You are a crypto analyst for Telegram users. Provide detailed analysis for {asset_name}.
+
+Current price: ${current_price:.4f}
+Current volume: {volume_status}
 
 Include these sections (max 400 words total):
-1. 📈 Market Summary: Recent price movements and context
-2. 🧠 Technical Analysis: Support/resistance, indicators, and patterns
+1. 📈 Market Summary: Recent price movements and context (always mention current price)
+2. 🧠 Technical Analysis: Support/resistance, indicators, and patterns (use narrower ranges unless high volume justifies wider ranges)
 3. 🔍 Market Sentiment: Current market mood and external factors
 4. 💡 Trading Perspective: Short and medium-term outlook
 5. ⚠️ Risk Assessment: Key things to watch
 
 Format with clear sections. Use plain text without asterisks for formatting.
+Always include the current price in your analysis.
 """
 
 # Default to normal length
@@ -92,17 +104,40 @@ class AIAnalyzer:
             return "❌ Error: OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable."
         
         try:
-            # Format the prompt with asset name and current price
+            # Get volume data
+            volume_status = "NORMAL"
+            try:
+                price_data = self.get_price_data(asset_name)
+                if price_data and 'volume_24h' in price_data:
+                    # Check if we can get historical volume data to compare
+                    historical_data = self._get_historical_volume(asset_name)
+                    if historical_data and len(historical_data) > 1:
+                        current_volume = price_data['volume_24h']
+                        avg_volume = sum(historical_data[:-1]) / len(historical_data[:-1])
+                        volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+                        
+                        if volume_ratio > 1.5:
+                            volume_status = f"HIGH ({volume_ratio:.2f}x average)"
+                        elif volume_ratio < 0.7:
+                            volume_status = f"LOW ({volume_ratio:.2f}x average)"
+                        else:
+                            volume_status = "NORMAL"
+            except Exception as e:
+                print(f"Error analyzing volume: {e}")
+                volume_status = "NORMAL"
+            
+            # Format the prompt with asset name, current price and volume status
             prompt = ANALYSIS_PROMPT.format(
                 asset_name=asset_name,
-                current_price=current_price
+                current_price=current_price,
+                volume_status=volume_status
             )
             
             # Call the OpenAI API
             response = self.client.chat.completions.create(
                 model="gpt-4-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a professional cryptocurrency market analyst."},
+                    {"role": "system", "content": "You are a professional cryptocurrency market analyst. Always include the current price in your analysis. Use narrower price ranges unless high volume justifies wider ranges."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
@@ -114,6 +149,46 @@ class AIAnalyzer:
             
         except Exception as e:
             return f"❌ Error generating analysis: {str(e)}"
+    
+    def _get_historical_volume(self, asset_name, days=7):
+        """
+        Get historical volume data for a cryptocurrency.
+        
+        Args:
+            asset_name (str): Name of the cryptocurrency (e.g., "BTC", "ETH")
+            days (int): Number of days of historical data
+            
+        Returns:
+            list: List of volume values
+        """
+        try:
+            # Convert asset name to CoinGecko ID format
+            asset_id = self._get_coingecko_id(asset_name)
+            
+            # Call CoinGecko API for market chart data
+            url = f"https://api.coingecko.com/api/v3/coins/{asset_id}/market_chart"
+            params = {
+                "vs_currency": "usd",
+                "days": days,
+                "interval": "daily"
+            }
+            
+            response = requests.get(url, params=params)
+            if response.status_code != 200:
+                return None
+                
+            data = response.json()
+            
+            # Extract volume data
+            if 'total_volumes' in data and len(data['total_volumes']) > 0:
+                volumes = [volume[1] for volume in data['total_volumes']]
+                return volumes
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error fetching historical volume data: {e}")
+            return None
     
     def get_price_data(self, asset_name):
         """

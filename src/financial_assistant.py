@@ -230,14 +230,51 @@ class FinancialAssistant:
         """
         current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # Obtener datos de volumen
+        try:
+            crypto_data = CryptoDataProvider(symbol=asset)
+            volume_data = None
+            high_volume = False
+            volume_comparison = ""
+            
+            if crypto_data.fetch_data() and crypto_data.data and 'volume' in crypto_data.data:
+                volumes = crypto_data.data['volume']
+                if len(volumes) > 1:
+                    current_volume = volumes[-1]
+                    avg_volume = sum(volumes[:-1]) / len(volumes[:-1])
+                    volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
+                    
+                    high_volume = volume_ratio > 1.5
+                    volume_data = {
+                        "current": current_volume,
+                        "average": avg_volume,
+                        "ratio": volume_ratio,
+                        "is_high": high_volume
+                    }
+                    
+                    volume_comparison = f"""
+                    El volumen actual es {volume_ratio:.2f} veces el promedio de los últimos días.
+                    Volumen actual: ${current_volume:.2f}
+                    Volumen promedio: ${avg_volume:.2f}
+                    """
+        except Exception as e:
+            print(f"Error al obtener datos de volumen: {e}")
+            volume_data = None
+            high_volume = False
+            volume_comparison = ""
+        
         prompt = f"""
         Eres un asistente financiero especializado en análisis técnico y de mercado. Necesito que analices el precio del activo {asset} a día de hoy ({current_date}) con precio actual de ${current_price:.4f}.
 
         1. Haz una predicción del comportamiento del precio para las próximas 24 horas, incluyendo:
-           - Posible rango de precios (mínimo y máximo)
+           - Posible rango de precios (mínimo y máximo). IMPORTANTE: El rango debe ser más ajustado y realista, evitando márgenes excesivamente amplios a menos que haya alta volatilidad justificada.
            - Tendencia esperada (alcista, bajista o lateral)
            - Niveles de soporte y resistencia relevantes
            - Cualquier patrón o señal destacable del análisis técnico
+        
+        {volume_comparison if volume_data else ""}
+        
+        {f"NOTA: Se detecta un volumen significativamente alto. Considera esto en tu análisis y menciona explícitamente si esto justifica un rango de precios más amplio." if high_volume else ""}
 
         Responde SOLO con datos concretos en este formato exacto:
 
@@ -246,7 +283,8 @@ class FinancialAssistant:
         PRECIO_PROBABLE: [VALOR]
         SOPORTE: [VALOR]
         RESISTENCIA: [VALOR]
-        COMENTARIOS: [Breve análisis técnico, patrones identificados, señales relevantes]
+        VOLUMEN: [ALTO/NORMAL/BAJO]
+        COMENTARIOS: [Breve análisis técnico, patrones identificados, señales relevantes, menciona el volumen si es relevante]
         """
         
         return prompt
@@ -287,9 +325,9 @@ class FinancialAssistant:
                     analysis_data["prediction"]["min_price"] = float(min_str.strip())
                     analysis_data["prediction"]["max_price"] = float(max_str.strip())
                 except:
-                    # Si hay error en el formato, usar valores aproximados
-                    analysis_data["prediction"]["min_price"] = current_price * 0.95
-                    analysis_data["prediction"]["max_price"] = current_price * 1.05
+                    # Si hay error en el formato, usar valores aproximados (rango más pequeño)
+                    analysis_data["prediction"]["min_price"] = current_price * 0.98
+                    analysis_data["prediction"]["max_price"] = current_price * 1.02
             elif line.startswith("PRECIO_PROBABLE:"):
                 try:
                     analysis_data["prediction"]["likely_price"] = float(line.replace("PRECIO_PROBABLE:", "").strip())
@@ -301,13 +339,15 @@ class FinancialAssistant:
                     analysis_data["prediction"]["support"] = float(line.replace("SOPORTE:", "").strip())
                 except:
                     # Si hay error en el formato, usar un valor aproximado
-                    analysis_data["prediction"]["support"] = current_price * 0.97
+                    analysis_data["prediction"]["support"] = current_price * 0.98
             elif line.startswith("RESISTENCIA:"):
                 try:
                     analysis_data["prediction"]["resistance"] = float(line.replace("RESISTENCIA:", "").strip())
                 except:
                     # Si hay error en el formato, usar un valor aproximado
-                    analysis_data["prediction"]["resistance"] = current_price * 1.03
+                    analysis_data["prediction"]["resistance"] = current_price * 1.02
+            elif line.startswith("VOLUMEN:"):
+                analysis_data["prediction"]["volume"] = line.replace("VOLUMEN:", "").strip()
             elif line.startswith("COMENTARIOS:"):
                 analysis_data["prediction"]["comments"] = line.replace("COMENTARIOS:", "").strip()
         
@@ -315,15 +355,17 @@ class FinancialAssistant:
         if "trend" not in analysis_data["prediction"]:
             analysis_data["prediction"]["trend"] = "LATERAL"
         if "min_price" not in analysis_data["prediction"]:
-            analysis_data["prediction"]["min_price"] = current_price * 0.95
+            analysis_data["prediction"]["min_price"] = current_price * 0.98
         if "max_price" not in analysis_data["prediction"]:
-            analysis_data["prediction"]["max_price"] = current_price * 1.05
+            analysis_data["prediction"]["max_price"] = current_price * 1.02
         if "likely_price" not in analysis_data["prediction"]:
             analysis_data["prediction"]["likely_price"] = current_price
         if "support" not in analysis_data["prediction"]:
-            analysis_data["prediction"]["support"] = current_price * 0.97
+            analysis_data["prediction"]["support"] = current_price * 0.98
         if "resistance" not in analysis_data["prediction"]:
-            analysis_data["prediction"]["resistance"] = current_price * 1.03
+            analysis_data["prediction"]["resistance"] = current_price * 1.02
+        if "volume" not in analysis_data["prediction"]:
+            analysis_data["prediction"]["volume"] = "NORMAL"
         if "comments" not in analysis_data["prediction"]:
             analysis_data["prediction"]["comments"] = "Análisis no disponible"
         
@@ -350,15 +392,18 @@ class FinancialAssistant:
         max_price = analysis["prediction"]["max_price"]
         support = analysis["prediction"]["support"]
         resistance = analysis["prediction"]["resistance"]
+        volume = analysis["prediction"].get("volume", "NORMAL")
         comments = analysis["prediction"]["comments"]
         
         # Formatear salida
         output = f"""📈 Predicción para {asset} - {timestamp}
 
+💰 Precio actual: ${current_price:.4f}
 🔮 Tendencia esperada: {trend} 
 📊 Rango estimado: ${min_price:.4f} - ${max_price:.4f} 
 🛑 Soporte clave: ${support:.4f} 
 📈 Resistencia clave: ${resistance:.4f}
+📊 Volumen: {volume}
 """
         
         # Añadir comparación con análisis anterior si existe

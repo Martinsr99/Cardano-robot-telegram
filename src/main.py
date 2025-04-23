@@ -244,6 +244,137 @@ class TradingBot:
                 'stop_loss': stop_loss_price
             })
     
+    def _process_buy_signal(self, strength, reason):
+        """Process a buy signal from AI analysis"""
+        current_price = self.market_data.get_latest_price()
+        quantity = calculate_quantity(current_price)
+        
+        # Get price trend analysis
+        trend_direction, trend_strength, trend_description = self.signal_generator.analyze_price_trend()
+        
+        # Create notification message
+        msg = (
+            f"*🔔 SEÑAL DE COMPRA (IA) para {SYMBOL}*\n"
+            f"💰 *Precio:* `{format_price(current_price)}`\n"
+            f"💪 *Fuerza de la señal:* `{strength:.2f}`\n"
+            f"📝 *Análisis:* `{reason}`\n"
+            f"💵 *Inversión:* `${SIMULATED_INVESTMENT:.2f}`\n"
+            f"🔢 *Cantidad:* `{quantity:.6f}`"
+        )
+        
+        print("\n" + msg.replace("*", "").replace("`", ""))
+        
+        # Calculate estimated take profit and stop loss
+        take_profit_price = current_price * (1 + PROFIT_TARGET)
+        stop_loss_price = current_price * (1 - STOP_LOSS)
+        
+        # Add to notification
+        msg += (
+            f"\n📈 *Take Profit:* `{format_price(take_profit_price)}`\n"
+            f"📉 *Stop Loss:* `{format_price(stop_loss_price)}`\n\n"
+            f"📊 *Tendencia del Mercado:*\n"
+            f"`{trend_description}`"
+        )
+        
+        # Send notification with alert recording
+        signal_data = {
+            'price': current_price,
+            'strength': strength,
+            'take_profit': take_profit_price,
+            'stop_loss': stop_loss_price,
+            'ai_analysis': True
+        }
+        
+        if SEND_ALERT:
+            send_telegram_message(msg, alert_type='buy', data=signal_data)
+        
+        # Open position
+        self.position.open(SYMBOL, current_price, quantity, reason)
+        print("📈 Posición abierta (basada en análisis de IA)")
+        
+        # Notify callbacks
+        self._notify_callbacks('on_position_update', self.position)
+        self._notify_callbacks('on_signal', {
+            'type': 'buy',
+            'price': current_price,
+            'reason': reason,
+            'take_profit': take_profit_price,
+            'stop_loss': stop_loss_price,
+            'ai_analysis': True
+        })
+    
+    def _process_sell_signal(self, reason):
+        """Process a sell signal from AI analysis"""
+        current_price = self.market_data.get_latest_price()
+        
+        # Calculate profit/loss
+        profit_pct = (current_price - self.position.entry_price) / self.position.entry_price
+        profit_amount = self.position.quantity * self.position.entry_price * profit_pct
+        
+        # Determine if take profit or stop loss was hit
+        is_take_profit = profit_pct >= PROFIT_TARGET
+        is_stop_loss = profit_pct <= -STOP_LOSS
+        
+        tp_sl_status = ""
+        if is_take_profit:
+            tp_sl_status = "✅ Take Profit alcanzado"
+        elif is_stop_loss:
+            tp_sl_status = "🛑 Stop Loss activado"
+        
+        # Get price trend analysis
+        trend_direction, trend_strength, trend_description = self.signal_generator.analyze_price_trend()
+        
+        # Create notification message
+        msg = (
+            f"*🔔 SEÑAL DE VENTA (IA) para {SYMBOL}*\n"
+            f"💰 *Precio de entrada:* `{format_price(self.position.entry_price)}`\n"
+            f"💰 *Precio actual:* `{format_price(current_price)}`\n"
+            f"📊 *Beneficio/Pérdida:* `{profit_pct:.2%} ({format_price(profit_amount)})`\n"
+            f"⏱️ *Tiempo en posición:* `{(datetime.datetime.now() - self.position.entry_time).days} días`\n"
+            f"📝 *Razón:* `{reason}`"
+        )
+        
+        # Add TP/SL status if applicable
+        if tp_sl_status:
+            msg += f"\n🎯 *Estado:* `{tp_sl_status}`"
+            
+        # Add trend analysis
+        msg += (
+            f"\n\n📊 *Tendencia del Mercado:*\n"
+            f"`{trend_description}`"
+        )
+        
+        print("\n" + msg.replace("*", "").replace("`", ""))
+        
+        # Send notification with alert recording
+        signal_data = {
+            'entry_price': self.position.entry_price,
+            'exit_price': current_price,
+            'profit_pct': profit_pct,
+            'profit_amount': profit_amount,
+            'is_take_profit': is_take_profit,
+            'is_stop_loss': is_stop_loss,
+            'ai_analysis': True
+        }
+        
+        if SEND_ALERT:
+            send_telegram_message(msg, alert_type='sell', data=signal_data)
+        
+        # Close position
+        self.position.close(current_price, reason)
+        print("📉 Posición cerrada (basada en análisis de IA)")
+        
+        # Notify callbacks
+        self._notify_callbacks('on_position_update', self.position)
+        self._notify_callbacks('on_signal', {
+            'type': 'sell',
+            'price': current_price,
+            'reason': reason,
+            'profit_pct': profit_pct,
+            'profit_amount': profit_amount,
+            'ai_analysis': True
+        })
+        
     def _check_sell_signals(self):
         """Check for sell signals"""
         # Get sell signal
@@ -339,17 +470,15 @@ class TradingBot:
             if not self.initialize():
                 return False
             
-            # Comprobar último pronóstico al iniciar
+            # Comprobar y generar pronóstico financiero al iniciar
+            # Esto utilizará get_asset_forecast que cerrará análisis antiguos
+            print("\n🔮 Comprobando y generando pronóstico financiero al iniciar...")
             check_results = self.forecast_integration.check_forecast_on_startup()
-            if "message" in check_results and not "error" in check_results:
-                print(f"\n🔮 Comprobación de pronóstico: {check_results['message']}")
-                if "accuracy_message" in check_results:
-                    print(f"   {check_results['accuracy_message']}")
             
-            # Generar nuevo pronóstico si no hay uno reciente
-            if not self.forecast_integration.forecast_system.forecast_manager.get_latest_forecast():
-                print("\n🔮 Generando pronóstico inicial...")
-                self.forecast_integration.generate_new_forecast()
+            if "error" in check_results:
+                print(f"❌ Error al generar pronóstico financiero: {check_results['error']}")
+            else:
+                print(f"✅ Pronóstico financiero generado correctamente para {check_results.get('symbol', SYMBOL)}")
             
             self.analyze_market()
             return True
@@ -401,7 +530,7 @@ class TradingBot:
                 break
 
     def analyze_market(self):
-        """Analyze the market and generate signals"""
+        """Analyze the market and generate signals using AI"""
         # Get current time and price
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         current_price = self.market_data.get_latest_price()
@@ -413,13 +542,76 @@ class TradingBot:
         
         print(f"\n⏰ Análisis a las {current_time} - {SYMBOL}: {format_price(current_price)}")
         
-        # Check for signals based on position status
-        if self.position.active:
-            self._check_sell_signals()
-        else:
-            self._check_buy_signals()
-        
-        print("\n✅ Análisis completado con éxito.")
+        try:
+            # Usar el análisis de IA para generar señales
+            from src.financial_assistant import get_asset_forecast
+            symbol = SYMBOL.split('-')[0]
+            
+            # Obtener el análisis de IA (esto también cerrará análisis antiguos)
+            print(f"🧠 Generando análisis de mercado con IA para {symbol}...")
+            ai_forecast = get_asset_forecast(symbol)
+            
+            # Extraer información relevante del análisis de IA
+            trend = "LATERAL"  # Valor por defecto
+            if "Tendencia esperada: ALCISTA" in ai_forecast:
+                trend = "ALCISTA"
+                is_buy = True
+                strength = 0.75
+                reason = "IA detecta tendencia alcista"
+            elif "Tendencia esperada: BAJISTA" in ai_forecast:
+                trend = "BAJISTA"
+                is_buy = False
+                strength = 0.25
+                reason = "IA detecta tendencia bajista"
+            else:
+                # Para tendencia lateral, usar análisis técnico tradicional como respaldo
+                if self.position.active:
+                    self._check_sell_signals()
+                else:
+                    self._check_buy_signals()
+                
+                print("\n✅ Análisis completado con éxito.")
+                return
+            
+            # Mostrar información del análisis
+            print(f"🔍 Análisis de IA: {reason}")
+            print(f"📊 Tendencia: {trend}")
+            print(format_signal_strength(strength))
+            
+            # Almacenar resultado del análisis
+            self.last_analysis_result = {
+                'type': 'buy' if is_buy else 'sell',
+                'is_signal': is_buy,
+                'strength': strength,
+                'reason': reason,
+                'time': datetime.datetime.now(),
+                'ai_analysis': True
+            }
+            self.last_analysis_time = datetime.datetime.now()
+            
+            # Notificar callbacks
+            self._notify_callbacks('on_analysis_complete', self.last_analysis_result)
+            
+            # Procesar señal si es de compra y no hay posición activa
+            if is_buy and not self.position.active:
+                self._process_buy_signal(strength, reason)
+            # Procesar señal si es de venta y hay posición activa
+            elif not is_buy and self.position.active:
+                self._process_sell_signal(reason)
+            
+            print("\n✅ Análisis con IA completado con éxito.")
+            
+        except Exception as e:
+            print(f"❌ Error en el análisis con IA: {str(e)}")
+            print("⚠️ Usando análisis técnico tradicional como respaldo...")
+            
+            # Usar análisis técnico tradicional como respaldo
+            if self.position.active:
+                self._check_sell_signals()
+            else:
+                self._check_buy_signals()
+            
+            print("\n✅ Análisis completado con éxito.")
 
 def main():
     """Main entry point"""
