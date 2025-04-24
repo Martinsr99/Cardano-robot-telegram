@@ -115,13 +115,13 @@ class FinancialAssistant:
         sorted_analyses = sorted(old_analyses, key=lambda x: x["timestamp"], reverse=True)
         return sorted_analyses[0]
     
-    def mark_analysis_as_closed(self, analysis_id: str, current_price: float) -> Dict[str, Any]:
+    def mark_analysis_as_closed(self, analysis_id: str, closing_price: float) -> Dict[str, Any]:
         """
-        Marca un análisis como cerrado y calcula la diferencia con el precio actual.
+        Marca un análisis como cerrado y calcula la diferencia con el precio de cierre.
         
         Args:
             analysis_id: ID del análisis a cerrar
-            current_price: Precio actual del activo
+            closing_price: Precio al momento del cierre del análisis (24h después de creación)
             
         Returns:
             Análisis actualizado
@@ -138,13 +138,13 @@ class FinancialAssistant:
         
         # Calcular diferencia con el precio predicho
         predicted_price = analysis["prediction"]["likely_price"]
-        price_diff = current_price - predicted_price
+        price_diff = closing_price - predicted_price
         price_diff_pct = (price_diff / predicted_price) * 100
         
         # Determinar si la predicción fue acertada
         min_price = analysis["prediction"]["min_price"]
         max_price = analysis["prediction"]["max_price"]
-        within_range = min_price <= current_price <= max_price
+        within_range = min_price <= closing_price <= max_price
         
         # Determinar precisión
         if within_range:
@@ -158,7 +158,7 @@ class FinancialAssistant:
         # Actualizar análisis
         analysis["closed"] = True
         analysis["closed_timestamp"] = datetime.now().isoformat()
-        analysis["actual_price"] = current_price
+        analysis["actual_price"] = closing_price  # Precio al momento del cierre (24h después)
         analysis["price_diff"] = price_diff
         analysis["price_diff_pct"] = price_diff_pct
         analysis["within_range"] = within_range
@@ -395,12 +395,41 @@ class FinancialAssistant:
         volume = analysis["prediction"].get("volume", "NORMAL")
         comments = analysis["prediction"]["comments"]
         
+        # Obtener precio actual actualizado
+        try:
+            crypto_data = CryptoDataProvider(symbol=asset)
+            if crypto_data.fetch_data():
+                updated_price = crypto_data.get_latest_price()
+                price_change = ((updated_price - current_price) / current_price) * 100
+                price_change_str = f"({price_change:.2f}%)" if updated_price != current_price else ""
+            else:
+                updated_price = current_price
+                price_change_str = ""
+        except:
+            updated_price = current_price
+            price_change_str = ""
+        
+        # Determinar indicador de compra/venta
+        buy_sell_indicator = ""
+        if trend == "ALCISTA" and updated_price < resistance:
+            buy_sell_indicator = "🟢 COMPRA"
+        elif trend == "BAJISTA" and updated_price > support:
+            buy_sell_indicator = "🔴 VENTA"
+        else:
+            buy_sell_indicator = "⚪ NEUTRAL"
+        
+        # Calcular precio esperado en 24 horas (dentro del rango)
+        likely_price = analysis["prediction"]["likely_price"]
+        
         # Formatear salida
         output = f"""📈 Predicción para {asset} - {timestamp}
 
-💰 Precio actual: ${current_price:.4f}
+💰 Precio actual: ${updated_price:.4f} {price_change_str}
+📍 Precio al abrir análisis: ${current_price:.4f}
+🎯 Indicador: {buy_sell_indicator}
 🔮 Tendencia esperada: {trend} 
-📊 Rango estimado: ${min_price:.4f} - ${max_price:.4f} 
+📊 Rango estimado: ${min_price:.4f} - ${max_price:.4f}
+💫 Precio esperado (24h): ${likely_price:.4f}
 🛑 Soporte clave: ${support:.4f} 
 📈 Resistencia clave: ${resistance:.4f}
 📊 Volumen: {volume}
@@ -571,9 +600,10 @@ def get_asset_forecast(asset: str, api_key=None, force_new=False) -> str:
                 print(f"⚠️ El análisis {old_analysis['id']} ya está marcado como cerrado")
                 continue
                 
-            # Cerrar el análisis
-            closed_analysis = assistant.mark_analysis_as_closed(old_analysis["id"], current_price)
-            print(f"✅ Análisis antiguo de {asset} con ID {old_analysis['id']} cerrado correctamente")
+            # Cerrar el análisis con el precio esperado (likely_price) en lugar del precio actual
+            closing_price = old_analysis["prediction"]["likely_price"]
+            closed_analysis = assistant.mark_analysis_as_closed(old_analysis["id"], closing_price)
+            print(f"✅ Análisis antiguo de {asset} con ID {old_analysis['id']} cerrado correctamente con precio esperado: ${closing_price:.4f}")
             
             # Guardar el análisis cerrado más reciente para mostrarlo en la comparación
             if previous_analysis is None or datetime.fromisoformat(closed_analysis["timestamp"]) > datetime.fromisoformat(previous_analysis["timestamp"]):

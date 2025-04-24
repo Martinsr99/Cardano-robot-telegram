@@ -156,6 +156,9 @@ class CryptoDataProvider:
                 print("❌ No se pudo obtener información de precio actual.")
                 return False
             
+            # Add a delay to avoid rate limiting
+            time.sleep(1.5)
+            
             # Get historical price data (last 30 days)
             historical_data = self._get_historical_price_data(days=30)
             if not historical_data:

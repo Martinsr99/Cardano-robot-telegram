@@ -141,10 +141,33 @@ def list_analyses(show_open=True, show_closed=True):
         min_price = analysis["prediction"]["min_price"]
         max_price = analysis["prediction"]["max_price"]
         
+        # Get current price if possible
+        current_price_str = ""
+        try:
+            from src.crypto_data_provider import CryptoDataProvider
+            crypto_data = CryptoDataProvider(symbol=asset)
+            if crypto_data.fetch_data():
+                current_price = crypto_data.get_latest_price()
+                current_price_str = f"| Precio actual: ${current_price:.4f}"
+        except:
+            pass
+        
+        # Determine buy/sell indicator
+        buy_sell_indicator = ""
+        if trend == "ALCISTA" and not is_closed:
+            buy_sell_indicator = "🟢 COMPRA"
+        elif trend == "BAJISTA" and not is_closed:
+            buy_sell_indicator = "🔴 VENTA"
+        elif not is_closed:
+            buy_sell_indicator = "⚪ NEUTRAL"
+        
         # Print analysis summary
         status = "🔴 CERRADO" if is_closed else "🟢 ABIERTO"
         print(f"ID: {analysis_id} | {asset} | {timestamp} | {status}")
-        print(f"  Tendencia: {trend} | Rango: ${min_price:.4f} - ${max_price:.4f}")
+        print(f"  Tendencia: {trend} | Rango: ${min_price:.4f} - ${max_price:.4f} {current_price_str}")
+        
+        if not is_closed and buy_sell_indicator:
+            print(f"  Indicador: {buy_sell_indicator}")
         
         # Print additional info for closed analyses
         if is_closed:

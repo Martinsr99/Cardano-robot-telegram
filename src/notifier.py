@@ -624,7 +624,7 @@ def cmd_financial_forecast(args, bot, user_id=None, chat_id=None):
             
             # Add note about forcing new analysis if not forced
             if not force_new:
-                response += f"_Nota: Para forzar un nuevo análisis independientemente del tiempo transcurrido ({FINANCIAL_ANALYSIS_MIN_INTERVAL} horas), usa:_\n`/financial_forecast {symbol} force`\n\n"
+                response += f"_Nota: Para forzar un nuevo análisis independientemente del tiempo transcurrido ({FINANCIAL_ANALYSIS_MIN_INTERVAL} horas), usa:_\n`/forecast {symbol} force`\n\n"
             
             # Add chart link
             response += f"[Ver gráfico en TradingView]({chart_link})"
@@ -672,6 +672,50 @@ def cmd_financial_analyses(args, bot, user_id=None, chat_id=None):
                         except ValueError:
                             pass
         
+        # Check and close any open analyses that are older than 24 hours
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        limit_time = now - timedelta(hours=24)
+        limit_timestamp = limit_time.isoformat()
+        
+        # Get current prices for all assets to use when closing analyses
+        from src.crypto_data_provider import CryptoDataProvider
+        current_prices = {}
+        
+        # Find all open analyses that are older than 24 hours
+        old_open_analyses = []
+        for analysis in analyses:
+            if not analysis.get("closed", False) and analysis["timestamp"] < limit_timestamp:
+                asset = analysis["asset"]
+                if asset not in current_prices:
+                    try:
+                        crypto_data = CryptoDataProvider(symbol=asset)
+                        if crypto_data.fetch_data():
+                            current_prices[asset] = crypto_data.get_latest_price()
+                    except:
+                        pass
+                
+                if asset in current_prices:
+                    old_open_analyses.append(analysis)
+        
+        # Close old analyses
+        for analysis in old_open_analyses:
+            try:
+                asset = analysis["asset"]
+                # Use the likely_price from the analysis as the closing price
+                # This represents what the price should have been at the 24h mark
+                closing_price = analysis["prediction"]["likely_price"]
+                assistant.mark_analysis_as_closed(analysis["id"], closing_price)
+                print(f"✅ Análisis antiguo de {asset} con ID {analysis['id']} cerrado automáticamente con precio esperado: ${closing_price:.4f}")
+            except Exception as e:
+                print(f"❌ Error al cerrar análisis {analysis['id']}: {str(e)}")
+        
+        # Save changes if any analyses were closed
+        if old_open_analyses:
+            assistant._save_analyses()
+            # Reload analyses after closing old ones
+            analyses = assistant.analyses
+        
         # Filter analyses
         filtered_analyses = []
         for analysis in analyses:
@@ -689,6 +733,19 @@ def cmd_financial_analyses(args, bot, user_id=None, chat_id=None):
         
         # Limit the number of analyses
         filtered_analyses = filtered_analyses[:limit]
+        
+        # Get current prices for all assets in the filtered analyses
+        current_prices = {}
+        from src.crypto_data_provider import CryptoDataProvider
+        for analysis in filtered_analyses:
+            asset = analysis["asset"]
+            if asset not in current_prices:
+                try:
+                    crypto_data = CryptoDataProvider(symbol=asset)
+                    if crypto_data.fetch_data():
+                        current_prices[asset] = crypto_data.get_latest_price()
+                except:
+                    pass
         
         # Compose response
         response = f"*📊 Análisis Financieros ({len(filtered_analyses)})*\n\n"
@@ -709,13 +766,33 @@ def cmd_financial_analyses(args, bot, user_id=None, chat_id=None):
             
             # Add analysis to response
             response += f"*{asset} | {timestamp} | {status}*\n"
+            
+            # Add current price if available
+            if asset in current_prices:
+                current_price = current_prices[asset]
+                response += f"Precio actual: ${current_price:.4f}\n"
+            
+            # Add trend, range and expected price
+            likely_price = analysis["prediction"]["likely_price"]
             response += f"Tendencia: {trend} | Rango: ${min_price:.4f} - ${max_price:.4f}\n"
+            response += f"Precio esperado (24h): ${likely_price:.4f}\n"
+            
+            # Determine buy/sell indicator for open analyses
+            if not is_closed and asset in current_prices:
+                current_price = current_prices[asset]
+                if trend == "ALCISTA" and current_price < max_price:
+                    response += f"Indicador: 🟢 COMPRA\n"
+                elif trend == "BAJISTA" and current_price > min_price:
+                    response += f"Indicador: 🔴 VENTA\n"
+                else:
+                    response += f"Indicador: ⚪ NEUTRAL\n"
             
             # Add additional info for closed analyses
             if is_closed:
+                entry_price = analysis["current_price"]
                 actual_price = analysis["actual_price"]
                 precision = analysis["precision"]
-                response += f"Precio actual: ${actual_price:.4f} | Precisión: {precision}\n"
+                response += f"Precio inicial: ${entry_price:.4f} | Precio al cerrar: ${actual_price:.4f} | Precisión: {precision}\n"
             
             response += "\n"
         
